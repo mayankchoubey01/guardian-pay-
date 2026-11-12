@@ -13,10 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
 import { Skeleton, SkeletonCard, SkeletonTableRow } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
 import { Select, SelectItem } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
-import { Plus, Filter, Search, RefreshCw, Brain, AlertTriangle, Shield, ShieldAlert, DollarSign, Clock, Download, CreditCard } from 'lucide-react';
+import {
+  Plus, Filter, Search, RefreshCw, Brain, AlertTriangle, Shield,
+  ShieldAlert, DollarSign, Clock, Download, CreditCard, Users,
+  BarChart3, TrendingUp, ShieldCheck
+} from 'lucide-react';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -37,13 +40,15 @@ interface PaymentRow {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { activeMember } = useMember();
+  const { activeMember, allMembers } = useMember();
   const gridRef = useRef<any>(null);
 
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [quickFilter, setQuickFilter] = useState('');
   const [selectedMember, setSelectedMember] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedTier, setSelectedTier] = useState('ALL');
 
   // Weekly AI Summary state
   const [weeklySummary, setWeeklySummary] = useState<string | null>(null);
@@ -100,7 +105,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchPayments();
     fetchSummary();
-    const interval = setInterval(fetchPayments, 3000);
+    const interval = setInterval(fetchPayments, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -117,19 +122,46 @@ export default function DashboardPage() {
       .filter((p) => p.status === 'CAPTURED' && new Date(p.created_at).getTime() >= sevenDaysAgo)
       .reduce((sum, p) => sum + p.amount, 0);
 
+    const thirtyDaysAgo = Date.now() - 30 * 86400000;
+    const spentThisMonth = payments
+      .filter((p) => p.status === 'CAPTURED' && new Date(p.created_at).getTime() >= thirtyDaysAgo)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const totalCaptured = payments.filter((p) => p.status === 'CAPTURED').length;
+    const avgAmount = totalCaptured > 0
+      ? payments.filter((p) => p.status === 'CAPTURED').reduce((sum, p) => sum + p.amount, 0) / totalCaptured
+      : 0;
+
     return {
       heldNow,
       blockedCount,
       protectedAmount: protectedAmount.toFixed(2),
       spentThisWeek: spentThisWeek.toFixed(2),
+      spentThisMonth: spentThisMonth.toFixed(2),
+      totalTransactions: payments.length,
+      capturedCount: totalCaptured,
+      avgAmount: avgAmount.toFixed(2),
     };
   }, [payments]);
 
   // Filtered rows by member
   const filteredRows = useMemo(() => {
-    if (selectedMember === 'ALL') return payments;
-    return payments.filter((p) => p.member_id.toLowerCase() === selectedMember.toLowerCase());
-  }, [payments, selectedMember]);
+    let result = payments;
+
+    if (selectedMember !== 'ALL') {
+      result = result.filter((p) => p.member_id.toLowerCase() === selectedMember.toLowerCase());
+    }
+
+    if (selectedStatus !== 'ALL') {
+      result = result.filter((p) => p.status === selectedStatus);
+    }
+
+    if (selectedTier !== 'ALL') {
+      result = result.filter((p) => p.tier.toUpperCase() === selectedTier);
+    }
+
+    return result;
+  }, [payments, selectedMember, selectedStatus, selectedTier]);
 
   // Column definitions for AG Grid
   const columnDefs = useMemo<ColDef[]>(
@@ -139,8 +171,19 @@ export default function DashboardPage() {
         field: 'member_name',
         filter: true,
         sortable: true,
-        width: 140,
-        cellRenderer: (params: any) => <strong>{params.value}</strong>,
+        width: 130,
+        cellRenderer: (params: any) => {
+          const member = allMembers.find(m => m.name === params.value);
+          const color = member ? getRoleColor(member.role) : '#6366f1';
+          return (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: color }}>
+                {params.value?.charAt(0)}
+              </div>
+              <strong className="text-sm">{params.value}</strong>
+            </div>
+          );
+        },
       },
       {
         headerName: 'Recipient',
@@ -149,63 +192,69 @@ export default function DashboardPage() {
         sortable: true,
         flex: 1,
         minWidth: 180,
+        cellRenderer: (params: any) => (
+          <div className="font-medium text-slate-900">{params.value}</div>
+        ),
       },
       {
         headerName: 'Amount',
         field: 'amount',
         sortable: true,
-        width: 130,
+        width: 120,
         cellRenderer: (params: any) => (
-          <span className="font-semibold">${Number(params.value).toFixed(2)} USD</span>
+          <span className="font-semibold text-slate-900">${Number(params.value).toFixed(2)}</span>
         ),
       },
       {
-        headerName: 'Risk Level',
+        headerName: 'Risk',
         field: 'risk_level',
         sortable: true,
-        width: 150,
+        width: 110,
         cellRenderer: (params: any) => {
           const val = (params.value || 'low').toLowerCase();
           return (
-            <Badge variant="risk" level={val as any} score={params.data?.risk_score} />
+            <Badge variant="risk" level={val as any} score={params.data?.risk_score} className="text-xs" />
           );
         },
       },
       {
-        headerName: 'Policy Tier',
+        headerName: 'Tier',
         field: 'tier',
         sortable: true,
-        width: 130,
+        width: 100,
         cellRenderer: (params: any) => {
           const val = params.value;
-          return <Badge variant="tier" tier={val.toLowerCase() as any} />;
+          return <Badge variant="tier" tier={val.toLowerCase() as any} className="text-xs" />;
         },
       },
       {
         headerName: 'Status',
         field: 'status',
         sortable: true,
-        width: 140,
+        width: 130,
         cellRenderer: (params: any) => {
           const status = params.value;
-          return <Badge variant="status" status={status.toLowerCase() as any} />;
+          return <Badge variant="status" status={status.toLowerCase() as any} className="text-xs" />;
         },
       },
       {
         headerName: 'Decided By',
         field: 'decided_by',
-        width: 160,
+        width: 130,
         valueFormatter: (params) => params.value || 'Pending',
+        cellRenderer: (params: any) => (
+          <span className="text-sm text-slate-600">{params.value || 'Pending'}</span>
+        ),
       },
       {
-        headerName: 'Created',
+        headerName: 'Date',
         field: 'created_at',
         sortable: true,
-        width: 180,
-        valueFormatter: (params) => (params.value ? new Date(params.value).toLocaleDateString() : ''),
+        width: 150,
+        valueFormatter: (params) => params.value ? formatDate(params.value) : '',
       },
     ],
-    []
+    [allMembers]
   );
 
   const onRowClicked = (event: RowClickedEvent) => {
@@ -217,12 +266,12 @@ export default function DashboardPage() {
   // Enforce head-only access
   if (activeMember && activeMember.role !== 'head') {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-md mx-auto space-y-4 pb-8 px-2">
         <Card>
-          <CardContent className="py-8 text-center">
-            <Shield size={48} className="mx-auto text-amber-500 mb-4" aria-hidden="true" />
-            <h2 className="text-xl font-bold text-slate-900">Restricted to Head of Family</h2>
-            <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
+          <CardContent className="py-12 text-center">
+            <Shield className="w-16 h-16 mx-auto text-amber-500 mb-4" aria-hidden="true" />
+            <h2 className="text-xl font-bold text-slate-900">Head of Family Only</h2>
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
               <p className="text-sm text-amber-800">
                 The Family Dashboard is only accessible to the head of family (Dad). You are currently viewing as <strong>{activeMember.name}</strong>.
               </p>
@@ -230,7 +279,7 @@ export default function DashboardPage() {
                 Please use the <strong>"Viewing as"</strong> switcher at the top to switch to Dad.
               </p>
             </div>
-            <Button asChild className="mt-6">
+            <Button asChild className="mt-6 w-full sm:w-auto">
               <Link href="/send">Go to Send Money</Link>
             </Button>
           </CardContent>
@@ -240,7 +289,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -258,31 +307,61 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Metrics Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Held Now (Pending)"
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="Held Now"
           value={metrics.heldNow}
-          accent="amber"
-          icon={<Clock size={24} className="text-amber-500" aria-hidden="true" />}
+          icon={<Clock size={20} />}
+          color="amber"
+          trend="+2 today"
         />
-        <StatCard
-          label="Blocked Scams/Risks"
+        <MetricCard
+          label="Blocked Risks"
           value={metrics.blockedCount}
-          accent="red"
-          icon={<ShieldAlert size={24} className="text-red-500" aria-hidden="true" />}
+          icon={<ShieldAlert size={20} />}
+          color="red"
+          trend={`$${metrics.protectedAmount} protected`}
         />
-        <StatCard
-          label="Protected Amount"
-          value={`$${metrics.protectedAmount}`}
-          accent="green"
-          icon={<DollarSign size={24} className="text-green-500" aria-hidden="true" />}
-        />
-        <StatCard
-          label="Spent This Week"
+        <MetricCard
+          label="This Week"
           value={`$${metrics.spentThisWeek}`}
-          accent="blue"
-          icon={<CreditCard size={24} className="text-blue-500" aria-hidden="true" />}
+          icon={<CreditCard size={20} />}
+          color="blue"
+          trend={`${metrics.capturedCount} transactions`}
         />
+        <MetricCard
+          label="This Month"
+          value={`$${metrics.spentThisMonth}`}
+          icon={<TrendingUp size={20} />}
+          color="green"
+          trend={`Avg $${metrics.avgAmount}`}
+        />
+      </div>
+
+      {/* Member Breakdown */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {allMembers.filter(m => m.role !== 'head').map((member) => {
+          const memberPayments = payments.filter(p => p.member_id === member.id);
+          const captured = memberPayments.filter(p => p.status === 'CAPTURED');
+          const held = memberPayments.filter(p => p.status === 'HELD');
+          const voided = memberPayments.filter(p => p.status === 'VOIDED');
+          const spent = captured.reduce((sum, p) => sum + p.amount, 0);
+          const protectedAmt = voided.reduce((sum, p) => sum + p.amount, 0);
+
+          return (
+            <MemberCard
+              key={member.id}
+              member={member}
+              stats={{
+                transactions: memberPayments.length,
+                spent: spent.toFixed(2),
+                pending: held.length,
+                blocked: voided.length,
+                protected: protectedAmt.toFixed(2),
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Weekly AI Summary Box */}
@@ -335,45 +414,67 @@ export default function DashboardPage() {
           <div>
             <CardTitle className="text-xl">All Family Transactions</CardTitle>
             <p className="text-slate-600 mt-1 text-sm">
-              Click any row to open the full decision and risk analysis page.
+              Click any row to open the full decision and risk analysis page. Total: {payments.length} payments
             </p>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="p-4 border-b border-slate-200">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
                 <input
                   type="text"
                   placeholder="Quick search payments..."
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   value={quickFilter}
                   onChange={(e) => setQuickFilter(e.target.value)}
                   aria-label="Quick search payments"
                 />
               </div>
 
-              <div className="relative w-full sm:w-48">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
-                <Select
+              <div className="flex flex-wrap gap-2">
+                <FilterSelect
                   value={selectedMember}
                   onChange={setSelectedMember}
-                  aria-label="Filter transactions by family member"
+                  options={[
+                    { value: 'ALL', label: 'All Members' },
+                    ...allMembers.filter(m => m.role !== 'head').map(m => ({ value: m.id, label: m.name })),
+                  ]}
                   placeholder="All Members"
-                >
-                  <SelectItem value="ALL">All Members</SelectItem>
-                  <SelectItem value="dad">Dad</SelectItem>
-                  <SelectItem value="mom">Mom</SelectItem>
-                  <SelectItem value="riya">Riya</SelectItem>
-                  <SelectItem value="aarav">Aarav</SelectItem>
-                  <SelectItem value="grandma">Grandma</SelectItem>
-                </Select>
+                  icon={<Users className="w-4 h-4" />}
+                />
+                <FilterSelect
+                  value={selectedStatus}
+                  onChange={setSelectedStatus}
+                  options={[
+                    { value: 'ALL', label: 'All Status' },
+                    { value: 'CAPTURED', label: 'Completed' },
+                    { value: 'HELD', label: 'Pending' },
+                    { value: 'VOIDED', label: 'Blocked' },
+                    { value: 'FAILED', label: 'Failed' },
+                    { value: 'ORDER_CREATED', label: 'Processing' },
+                  ]}
+                  placeholder="All Status"
+                  icon={<Filter className="w-4 h-4" />}
+                />
+                <FilterSelect
+                  value={selectedTier}
+                  onChange={setSelectedTier}
+                  options={[
+                    { value: 'ALL', label: 'All Tiers' },
+                    { value: 'AUTO', label: 'Auto' },
+                    { value: 'NOTIFY', label: 'Notify' },
+                    { value: 'APPROVAL', label: 'Approval' },
+                  ]}
+                  placeholder="All Tiers"
+                  icon={<ShieldCheck className="w-4 h-4" />}
+                />
               </div>
             </div>
           </div>
 
-          <div style={{ height: 520, width: '100%' }}>
+          <div style={{ height: 550, width: '100%' }}>
             {loading ? (
               <div className="p-4 space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -382,6 +483,7 @@ export default function DashboardPage() {
               </div>
             ) : filteredRows.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
+                <CreditCard className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                 No payments found. Try adjusting your filters or search.
               </div>
             ) : (
@@ -392,7 +494,7 @@ export default function DashboardPage() {
                 quickFilterText={quickFilter}
                 onRowClicked={onRowClicked}
                 pagination={true}
-                paginationPageSize={10}
+                paginationPageSize={15}
                 rowSelection="single"
                 animateRows={true}
                 theme="legacy"
@@ -404,4 +506,148 @@ export default function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+function MetricCard({ label, value, icon, color, trend }: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  trend?: string;
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-700',
+    green: 'bg-green-50 border-green-200 text-green-700',
+    amber: 'bg-amber-50 border-amber-200 text-amber-700',
+    red: 'bg-red-50 border-red-200 text-red-700',
+    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+  };
+
+  return (
+    <div className={cn('p-4 rounded-2xl border', colorClasses[color as keyof typeof colorClasses] || colorClasses.blue)}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <div className="p-2 rounded-xl bg-white/50">{icon}</div>
+      </div>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      {trend && <p className="text-xs text-slate-500 mt-1">{trend}</p>}
+    </div>
+  );
+}
+
+function MemberCard({ member, stats }: {
+  member: { id: string; name: string; role: string; auto_limit: number; notify_limit: number };
+  stats: { transactions: number; spent: string; pending: number; blocked: number; protected: string };
+}) {
+  const roleColor = getRoleColor(member.role);
+
+  return (
+    <Card className="border-slate-200 hover:border-slate-300 transition-colors">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg font-bold" style={{ backgroundColor: roleColor }}>
+            {member.name.charAt(0)}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-slate-900">{member.name}</p>
+            <p className="text-xs text-slate-500 capitalize">{member.role}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500">Auto / Notify</p>
+            <p className="font-medium text-sm">${member.auto_limit} / ${member.notify_limit}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-900">{stats.transactions}</p>
+            <p className="text-xs text-slate-500">Total Txns</p>
+          </div>
+          <div className="text-center border-x border-slate-100">
+            <p className="text-2xl font-bold text-green-600">${stats.spent}</p>
+            <p className="text-xs text-slate-500">Spent</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-900">{stats.pending}</p>
+            <p className="text-xs text-slate-500">Pending</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+          <div className="text-center">
+            <p className="text-xl font-bold text-red-600">{stats.blocked}</p>
+            <p className="text-xs text-slate-500">Blocked</p>
+          </div>
+          <div className="text-center border-x border-slate-100">
+            <p className="text-xl font-bold text-green-600">${stats.protected}</p>
+            <p className="text-xs text-slate-500">Protected</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-blue-600">{((stats.transactions - stats.pending - stats.blocked) || 0)}</p>
+            <p className="text-xs text-slate-500">Completed</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FilterSelect({ value, onChange, options, placeholder, icon }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          'w-full appearance-none py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white',
+          icon ? 'pl-10 pr-8' : 'pl-3 pr-8'
+        )}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+  );
+}
+
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
+
+  if (diffDays === 0) {
+    return `Today ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } else if (diffDays === 1) {
+    return `Yesterday ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  } else {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+}
+
+function getRoleColor(role: string): string {
+  switch (role) {
+    case 'head': return '#3b82f6';
+    case 'adult': return '#22c55e';
+    case 'teen': return '#f59e0b';
+    case 'child': return '#ef4444';
+    case 'elder': return '#8b5cf6';
+    default: return '#6366f1';
+  }
+}
+
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(' ');
 }

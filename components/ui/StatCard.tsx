@@ -5,11 +5,11 @@ interface StatCardProps {
   label: string;
   value: string | number;
   sub?: string;
-  accent?: 'blue' | 'green' | 'red' | 'amber' | 'default';
+  accent?: 'teal' | 'green' | 'red' | 'amber' | 'default';
 }
 
 const ACCENT_CLASSES: Record<string, string> = {
-  blue: 'border-l-4 border-l-blue-500',
+  teal: 'border-l-4 border-l-teal-500',
   green: 'border-l-4 border-l-green-500',
   red: 'border-l-4 border-l-red-500',
   amber: 'border-l-4 border-l-amber-500',
@@ -30,4 +30,3 @@ export function StatCard({ label, value, sub, accent = 'default' }: StatCardProp
     </div>
   );
 }
-

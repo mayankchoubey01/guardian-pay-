@@ -18,34 +18,34 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const RISK_CONFIG: Record<RiskLevel, { label: string; icon: React.ElementType; classes: string }> = {
-  low: { label: 'Low risk', icon: CheckCircle2, classes: 'bg-green-50 text-green-800 border border-green-200' },
-  medium: { label: 'Medium risk', icon: AlertTriangle, classes: 'bg-amber-50 text-amber-800 border border-amber-200' },
-  high: { label: 'High risk', icon: ShieldAlert, classes: 'bg-red-50 text-red-800 border border-red-200' },
-  uncertain: { label: 'Uncertain', icon: HelpCircle, classes: 'bg-slate-100 text-slate-700 border border-slate-200' },
+  low: { label: 'Low risk', icon: CheckCircle2, classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  medium: { label: 'Medium risk', icon: AlertTriangle, classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  high: { label: 'High risk', icon: ShieldAlert, classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  uncertain: { label: 'Uncertain', icon: HelpCircle, classes: 'bg-slate-100 text-slate-800 border border-slate-200' },
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; classes: string }> = {
-  captured: { label: 'Sent', classes: 'bg-green-50 text-green-800 border border-green-200' },
-  held: { label: 'Held', classes: 'bg-amber-50 text-amber-800 border border-amber-200' },
-  voided: { label: 'Blocked', classes: 'bg-red-50 text-red-800 border border-red-200' },
-  order_created: { label: 'Pending', classes: 'bg-blue-50 text-blue-800 border border-blue-200' },
-  expired: { label: 'Expired', classes: 'bg-slate-100 text-slate-600 border border-slate-200' },
-  payer_canceled: { label: 'Canceled', classes: 'bg-slate-100 text-slate-600 border border-slate-200' },
-  failed: { label: 'Failed', classes: 'bg-red-50 text-red-700 border border-red-200' },
+  captured: { label: 'Sent', classes: 'bg-success-100 text-success-700 border border-success-200' },
+  held: { label: 'Held', classes: 'bg-warning-100 text-warning-700 border border-warning-200' },
+  voided: { label: 'Blocked', classes: 'bg-danger-100 text-danger-700 border border-danger-200' },
+  order_created: { label: 'Pending', classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  expired: { label: 'Expired', classes: 'bg-slate-100 text-slate-800 border border-slate-200' },
+  payer_canceled: { label: 'Canceled', classes: 'bg-slate-100 text-slate-800 border border-slate-200' },
+  failed: { label: 'Failed', classes: 'bg-danger-100 text-danger-700 border border-danger-200' },
 };
 
 const TIER_CONFIG: Record<Tier, { label: string; classes: string }> = {
-  auto: { label: 'AUTO', classes: 'bg-green-50 text-green-800 border border-green-200' },
-  notify: { label: 'NOTIFY', classes: 'bg-amber-50 text-amber-800 border border-amber-200' },
-  approval: { label: 'APPROVAL', classes: 'bg-red-50 text-red-800 border border-red-200' },
+  auto: { label: 'AUTO', classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  notify: { label: 'NOTIFY', classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
+  approval: { label: 'APPROVAL', classes: 'bg-primary-100 text-primary-700 border border-primary-200' },
 };
 
 const VARIANT_CLASSES: Record<string, string> = {
-  secondary: 'bg-slate-100 text-slate-700 border border-slate-200',
+  secondary: 'bg-slate-100 text-slate-800 border border-slate-200',
   outline: 'bg-transparent text-slate-700 border border-slate-300',
-  success: 'bg-green-50 text-green-800 border border-green-200',
-  warning: 'bg-amber-50 text-amber-800 border border-amber-200',
-  destructive: 'bg-red-50 text-red-800 border border-red-200',
+  success: 'bg-success-100 text-success-700 border border-success-200',
+  warning: 'bg-warning-100 text-warning-700 border border-warning-200',
+  destructive: 'bg-danger-100 text-danger-700 border border-danger-200',
 };
 
 export function Badge({ className, variant = 'default', level, status, tier, score, icon, children, ...props }: BadgeProps) {

@@ -34,19 +34,11 @@ const MemberContext = createContext<MemberContextType>({
   refreshUnreadCount: () => {},
 });
 
-// Initialize from localStorage synchronously to avoid flash
-function getInitialMemberId(): string {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('guardian_active_member');
-    if (saved) return saved;
-  }
-  return 'dad';
-}
-
 export function MemberProvider({ children }: { children: React.ReactNode }) {
   const [allMembers, setAllMembers] = useState<Member[]>(DEFAULT_MEMBERS);
-  const [activeMemberId, setActiveMemberIdState] = useState<string>(getInitialMemberId);
+  const [activeMemberId, setActiveMemberIdState] = useState<string>('dad');
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [mounted, setMounted] = useState(false);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -60,13 +52,22 @@ export function MemberProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Read from localStorage after hydration to avoid mismatch
+  useEffect(() => {
+    const saved = localStorage.getItem('guardian_active_member');
+    if (saved) {
+      setActiveMemberIdState(saved);
+    }
+    setMounted(true);
+  }, []);
+
   // Only fetch updated limits from server once on mount
   useEffect(() => {
     fetch('/api/members')
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data) setAllMembers(data); })
       .catch(() => { /* Use defaults */ });
-    
+
     refreshUnreadCount();
     const timer = setInterval(refreshUnreadCount, 3000);
     return () => clearInterval(timer);
@@ -79,8 +80,8 @@ export function MemberProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const activeMember = useMemo(() => 
-    allMembers.find((m) => m.id === activeMemberId) || allMembers[0], 
+  const activeMember = useMemo(() =>
+    allMembers.find((m) => m.id === activeMemberId) || allMembers[0],
     [allMembers, activeMemberId]
   );
 
@@ -90,7 +91,17 @@ export function MemberProvider({ children }: { children: React.ReactNode }) {
     setActiveMemberId,
     unreadCount,
     refreshUnreadCount,
-  }), [activeMember, allMembers, setActiveMemberId, unreadCount, refreshUnreadCount]);
+    mounted,
+  }), [activeMember, allMembers, setActiveMemberId, unreadCount, refreshUnreadCount, mounted]);
+
+  // Don't render children until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return (
+      <MemberContext.Provider value={contextValue}>
+        {children}
+      </MemberContext.Provider>
+    );
+  }
 
   return (
     <MemberContext.Provider value={contextValue}>
@@ -100,6 +111,10 @@ export function MemberProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useMember() {
-  return useContext(MemberContext);
+  const context = useContext(MemberContext);
+  if (!context) {
+    throw new Error('useMember must be used within a MemberProvider');
+  }
+  return context;
 }
 

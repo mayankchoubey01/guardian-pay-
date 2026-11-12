@@ -14,22 +14,22 @@ const CONFIG: Record<RiskLevel, { label: string; icon: React.ElementType; classe
   low: {
     label: 'Low risk',
     icon: CheckCircle2,
-    classes: 'bg-green-50 text-green-800 border border-green-200',
+    classes: 'bg-primary-100 text-primary-700 border border-primary-200',
   },
   medium: {
     label: 'Medium risk',
     icon: AlertTriangle,
-    classes: 'bg-amber-50 text-amber-800 border border-amber-200',
+    classes: 'bg-primary-100 text-primary-700 border border-primary-200',
   },
   high: {
     label: 'High risk',
     icon: ShieldAlert,
-    classes: 'bg-red-50 text-red-800 border border-red-200',
+    classes: 'bg-primary-100 text-primary-700 border border-primary-200',
   },
   uncertain: {
     label: 'Uncertain',
     icon: HelpCircle,
-    classes: 'bg-slate-100 text-slate-700 border border-slate-200',
+    classes: 'bg-slate-100 text-slate-800 border border-slate-200',
   },
 };
 
@@ -54,4 +54,3 @@ export function RiskBadge({ level, score, className }: RiskBadgeProps) {
     </span>
   );
 }
-
