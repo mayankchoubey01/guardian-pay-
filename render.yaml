@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: guardian-pay
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.1
+      - key: APP_BASE_URL
+        sync: false
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: gemini-3.5-flash
+
