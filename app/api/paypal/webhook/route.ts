@@ -18,22 +18,30 @@ export async function POST(req: Request) {
     const authAlgo = headers.get('paypal-auth-algo') || '';
     const transmissionSig = headers.get('paypal-transmission-sig') || '';
 
-    // Verify webhook signature if webhook ID is set in environment
-    if (config.paypalWebhookId) {
-      const isValid = await verifyWebhookSignature({
-        transmissionId,
-        transmissionTime,
-        certUrl,
-        authAlgo,
-        transmissionSig,
-        webhookId: config.paypalWebhookId,
-        webhookEvent: event,
-      });
+    if (!config.paypalWebhookId) {
+      return NextResponse.json(
+        { error: 'PayPal webhook verification is not configured.' },
+        { status: 503 }
+      );
+    }
 
-      if (!isValid) {
-        console.warn('Rejected invalid PayPal webhook signature.');
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
-      }
+    if (!transmissionId || !transmissionTime || !certUrl || !authAlgo || !transmissionSig) {
+      return NextResponse.json({ error: 'Missing PayPal signature headers.' }, { status: 400 });
+    }
+
+    const isValid = await verifyWebhookSignature({
+      transmissionId,
+      transmissionTime,
+      certUrl,
+      authAlgo,
+      transmissionSig,
+      webhookId: config.paypalWebhookId,
+      webhookEvent: event,
+    });
+
+    if (!isValid) {
+      console.warn('Rejected invalid PayPal webhook signature.');
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
     }
 
     const eventId = event.id;
