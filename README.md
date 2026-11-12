@@ -1,119 +1,65 @@
-# Guardian Pay: Autonomous AI Family Payment Guardian
+# Guardian Pay: Family Payment Safety Prototype
 
-> **PayPal AI Hackathon 2026 Entry ("Build What's Next with PayPal and AI")**  
-> *Prototype. PayPal sandbox only, fake money. Inspired by how Indian families pay with UPI but not connected to UPI.*
+> A PayPal AI Hackathon 2026 prototype. It uses PayPal Sandbox and simulated family/recipient data only; it is not connected to UPI and must not be used for real payments.
 
----
+Guardian Pay evaluates family payment requests before checkout. A deterministic policy gate applies each member's spending limits, while Gemini can raise a payment's risk tier. Low-risk payments may proceed, moderate payments notify the family head, and high-value or suspicious requests require review before capture.
 
-## 1. What is Guardian Pay?
-In a family where multiple members pay several times a day, the head of the family cannot monitor individual transactions, making younger members and elders prime targets for scams. Existing financial fraud protections usually alert victims *after* the money has already left the account.
+## What the prototype demonstrates
 
-**Guardian Pay** is an autonomous AI agent that watches a family's payment requests and acts **before** money moves:
-- **Small, routine payments** process automatically with zero friction (Tier 1: `AUTO`).
-- **Moderate payments** go through while sending a transparent ping to the family head (Tier 2: `NOTIFY`).
-- **High-value or suspicious transactions** (e.g. urgent KYC demands, fake tech support, unknown recipients) are placed under a protective **PayPal authorization hold** until the head of the family reviews the AI risk reasons and decides to **Approve (Capture)** or **Block (Void)** (Tier 3: `APPROVAL`).
+- **AUTO:** familiar, low-value payments can be captured after PayPal Sandbox approval.
+- **NOTIFY:** payments above a member's auto limit can proceed and create a family notification.
+- **APPROVAL:** high-value requests and selected scam-like situations are held for a family-head decision to capture or void.
+- **Path B safety check:** an external payment link asks who requested the payment and why; risky answers force approval in the policy gate.
+- **Family dashboard:** transaction history, member limits, notifications, risk explanations, and a weekly Gemini summary.
+- **Scan and contacts:** QR-based recipient entry, recipient trust levels, and saved contacts.
 
----
+AI output is probabilistic and can vary. The policy gate enforces spending boundaries and can raise a tier; it cannot lower the tier selected by member limits or safety rules. If the AI request fails, the payment is sent for review.
 
-## 2. Architecture & How It Works
+## Run locally
 
-```mermaid
-flowchart LR
-    A["Family Member\n(Dad, Mom, Riya, Aarav, Grandma)"] -->|Enter Payment| B["Next.js Server"]
-    B -->|Member History Profile| C["Gemini AI Risk Engine\n(gemini-3.5-flash)"]
-    C -->|Structured JSON Assessment| D["Deterministic Policy Gate\n(Rules & Limits)"]
-    D -->|Create Order with Hold| E["PayPal Sandbox API\n(intent: AUTHORIZE)"]
-    E -->|Member Approves| F{"Policy Gate Tier"}
-    F -->|AUTO| G["Server Captures Funds Immediately"]
-    F -->|NOTIFY| H["Server Captures Funds + Alerts Head"]
-    F -->|APPROVAL| I["Protective Hold Locked\n(24-Hour Expiry)"]
-    I -->|Head Approves| J["Server Captures Authorization"]
-    I -->|Head Blocks| K["Server Voids Authorization\n(Funds Released)"]
-```
+Requirements: Node.js 22 or newer, a PayPal Sandbox app, and a Gemini API key. The repository does not include credentials.
 
-### The Three Tiers (Configured Per Member)
-| Member | Role | Auto Limit | Notify Limit | Approval Required Above |
-| :--- | :--- | :--- | :--- | :--- |
-| **Dad** | Head | No limit | No limit | Never held (Logged) |
-| **Mom** | Adult | $25.00 | $100.00 | $100.00 |
-| **Riya** | Teen | $10.00 | $40.00 | $40.00 |
-| **Aarav** | Child | $5.00 | $20.00 | $20.00 |
-| **Grandma** | Elder | $10.00 | $30.00 | $30.00 |
+1. Clone the public repository linked from the Devpost entry and open its folder.
+2. Install dependencies with `npm install`.
+3. Copy `.env.example` to `.env` and fill in `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `AI_API_KEY`. Keep `.env` private; never commit it.
+4. Start the app with `npm run dev` and open `http://localhost:3000`.
+5. To exercise webhook delivery, configure `PAYPAL_WEBHOOK_ID` for the webhook URL. The webhook endpoint rejects events if its ID is missing or the signature is invalid.
+6. Use the **Demo Scenarios** page to run the walkthrough. Payment scenarios call PayPal Sandbox and require an approved Sandbox buyer session.
 
----
+The app currently has no sign-in or server-side family-member authentication. **Run it locally only; do not expose it as a public hosted demo.** The APIs are a hackathon prototype and are not production-hardened.
 
-## 3. How PayPal & AI Are Used
+## Checks
 
-### PayPal REST API Integration
-- **Two-Phase Authorization Holds:** Every order is created with `intent: "AUTHORIZE"` (`POST /v2/checkout/orders`). This reserves funds without taking them.
-- **Capture on Approval:** For safe payments or when Dad clicks "Approve", the server calls `POST /v2/payments/authorizations/{id}/capture` with `final_capture: true`.
-- **Zero-Fee Cancellation via Void:** If Dad blocks a payment or the 24-hour deadline expires, the server calls `POST /v2/payments/authorizations/{id}/void`. The hold disappears without refund fees.
-- **Idempotency & Tracking:** Every call uses `PayPal-Request-Id` idempotency headers and logs `PayPal-Debug-Id` on error.
-- **Webhooks:** Listens to `PAYMENT.AUTHORIZATION.CREATED`, `PAYMENT.AUTHORIZATION.VOIDED`, `PAYMENT.CAPTURE.COMPLETED`, and `PAYMENT.CAPTURE.DENIED` with cryptographic signature verification via `/v1/notifications/verify-webhook-signature`.
-- **Implementation:** Direct REST API calls via `fetch` with token caching and automatic retry on 401 (token expiry). Built referencing official PayPal developer documentation for correctness.
+- `npm test` runs 30 deterministic policy-gate tests.
+- `npm run build` builds the Next.js app and runs TypeScript checks.
 
-### Google Gemini AI Engine
-- **Model:** `gemini-3.5-flash` with strict JSON mode.
-- **Role:** Analyzes the payment amount, historical averages, recent 24-hour volume, and the member's stated reason.
-- **Security & Prompt Injection Resilience:** The member's stated reason is strictly treated as untrusted data. The deterministic Policy Gate enforces limits in code: **the AI can only escalate a payment, never downgrade it**.
-- **Weekly Executive Synthesis:** Summarizes 7-day spending patterns and flagged security events for the head of family in 4–6 clear sentences.
+These checks do not replace an end-to-end PayPal Sandbox transaction test. The demo requires the credentials above.
 
----
+## Five demo scenarios
 
-## 4. Running the App Locally
+The `/demo` page has five one-click walkthroughs:
 
-### Quick Start (Desktop Folder Launcher)
-On macOS, simply double-click the **`open-app.command`** file inside the `family-guardian` folder on your Desktop! It will launch the local server and open your browser automatically.
+1. Riya pays a familiar Juice Bar for $4 (baseline AUTO).
+2. Mom pays the seeded Grocery Mart $35 (baseline NOTIFY).
+3. Riya pays the seeded School Office $90 (APPROVAL due to her limit).
+4. Grandma follows an external KYC verification link; the safety answers force APPROVAL, then the family head can block and void it.
+5. Mom scans a QR for a new prize-claim recipient (at least NOTIFY; the AI may raise it to APPROVAL).
 
-### Manual Terminal Setup
-```bash
-# 1. Clone repository
-git clone https://github.com/your-username/guardian-pay.git
-cd guardian-pay
+AI may raise any baseline tier, so the first, second, and fifth scenarios can produce a higher tier. Do not narrate a fixed AI score or result unless it is visible in that run.
 
-# 2. Install dependencies
-npm install
+## Stack
 
-# 3. Configure environment variables
-cp .env.example .env
-# Edit .env with your PayPal Sandbox credentials and Gemini API key
+Next.js 16, React 19, TypeScript, SQLite (`better-sqlite3`), PayPal Orders and Payments REST APIs, Gemini (`gemini-3.5-flash` by default), Zod, AG Grid Community, and Tailwind CSS.
 
-# 4. Run tests (Verifies 17 Policy Gate test cases)
-npm test
+## Security and demo limitations
 
-# 5. Start development server
-npm run dev
-# Open http://localhost:3000 in your browser
-```
+- PayPal Sandbox only; recipient labels are local demo data and funds are simulated.
+- The app has no authentication or authorization system and is not safe for public deployment or real financial use.
+- Webhook events are only applied after PayPal signature verification; configure a webhook ID before using the listener.
+- Authorization expiry now attempts to void the PayPal authorization before marking the local payment expired. A failed void is reported for manual follow-up.
+- AI risk assessment can be wrong. It is advisory; deterministic limits and the family-head review path remain in control.
+- SQLite is intended for this local prototype. No production persistence or disaster-recovery setup is included.
 
----
+## License
 
-## 5. The Four Demo Scenarios
-
-Visit `/demo` in the app for one-click repeatable execution of the four core judging scenarios:
-
-1. **Riya, $4.00, "Snacks and juice" $\rightarrow$ AUTO**  
-   Amount is within Riya's $10 auto limit. Evaluated as low risk, captures immediately without notification.
-2. **Mom, $35.00, "Weekly groceries" $\rightarrow$ NOTIFY**  
-   Exceeds Mom's $25 auto limit but below $100. Captures immediately and pings Dad with a notification.
-3. **Grandma, $5.00, "KYC Verify Desk" $\rightarrow$ APPROVAL (AI Escalation)**  
-   *The Scam Scenario:* $5 is below Grandma's $10 auto limit. However, the AI identifies urgent pressure and bank KYC impersonation signals (`#urgency`, `#impersonation`, `#fake_verification`), escalating it to Tier 3: APPROVAL. The money is placed on hold until Dad reviews and blocks it.
-4. **Riya, $90.00, "School trip fee" $\rightarrow$ APPROVAL**  
-   Legitimate high-value payment exceeding Riya's $40 notify limit. Held until Dad verifies and approves it.
-
----
-
-## 6. Honest Limitations & Disclosures
-
-- **Prototype & Sandbox Only:** Built exclusively for the PayPal Sandbox environment using simulated funds. No real money or bank accounts are connected.
-- **Simulated Recipients:** In the PayPal Sandbox, all transactions transfer into the developer's sandbox merchant account. The "recipient" is an organizational label stored in the local SQLite database.
-- **Inspiration from UPI Circle:** India's UPI Circle recently introduced family payment delegation. Guardian Pay was inspired by this concept, but is **not** connected to UPI or the NPCI network. Our contribution is proactive AI contextual risk assessment coupled with PayPal two-phase authorization holds.
-- **Human-in-the-Loop:** AI risk scoring is probabilistic and imperfect. That is why the Policy Gate enforces human review for all escalated payments.
-- **Accessibility:** Designed with semantic HTML, 18px+ readable typography, and high-contrast color palettes, but not formally WCAG-certified.
-- **Geographic Availability:** PayPal features and sandbox availability vary by country.
-
----
-
-## 7. License
-Distributed under the **MIT License**. See `LICENSE` for details.
-
+MIT. See [LICENSE](LICENSE).
