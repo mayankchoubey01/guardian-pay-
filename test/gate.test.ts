@@ -56,6 +56,7 @@ function baseInput(overrides: Partial<{
   safety_answers: SafetyCheckAnswers | null;
   ai_assessment: RiskAssessment | null;
 }> = {}) {
+  const hasAiAssessment = 'ai_assessment' in overrides;
   return {
     member: overrides.member || adultMember,
     amount: overrides.amount ?? 10,
@@ -63,7 +64,7 @@ function baseInput(overrides: Partial<{
     contact_trust: overrides.contact_trust ?? 'trusted',
     entry_path: overrides.entry_path ?? 'app',
     safety_answers: overrides.safety_answers ?? null,
-    ai_assessment: overrides.ai_assessment ?? safeAi,
+    ai_assessment: hasAiAssessment ? overrides.ai_assessment : safeAi,
   };
 }
 
